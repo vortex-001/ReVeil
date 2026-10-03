@@ -361,12 +361,26 @@
             </button>
             <label class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1f1f22] hover:bg-[#2a2a2d] text-white text-sm font-medium border border-[#26262E] transition-colors cursor-pointer">
               <span class="material-symbols-outlined text-slate-400 text-[18px]">upload_file</span>
-              Upload .txt / .md
-              <input id="file-uploader" accept=".txt,.md,.json,.log" class="hidden" type="file"/>
+              Upload document
+              <input id="file-uploader" accept=".txt,.pdf,.docx,.doc,.png,.jpg,.jpeg,.md,.json,.log" class="hidden" type="file"/>
             </label>
+            <div id="upload-file-status" class="hidden inline-flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-xl bg-[#181820] border border-[#26262E] text-slate-300">
+              <span class="w-2 h-2 rounded-full bg-[#57df8d]"></span>
+              <span id="upload-filename" class="font-semibold text-white truncate max-w-[160px]">file.pdf</span>
+              <span id="upload-method-badge" class="px-2 py-0.5 rounded-full bg-[#26262E] text-[10px] text-slate-300 border border-[#353438]">Text Extraction</span>
+            </div>
             <button id="btn-clear-input" class="p-2 rounded-xl hover:bg-[#2a2a2d] text-slate-400 hover:text-red-400 transition-colors cursor-pointer ml-auto" title="Clear text" type="button">
               <span class="material-symbols-outlined text-[18px]">delete</span>
             </button>
+          </div>
+
+          <!-- Multi-format indicator (Requirement 5) -->
+          <div class="flex items-center justify-between gap-2 text-[11px] text-slate-400 font-mono pt-1">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-slate-500 text-[14px]">file_present</span>
+              <span>Supported: <strong class="text-slate-300">TXT, PDF, DOCX, DOC, PNG, JPG</strong></span>
+            </span>
+            <span class="text-slate-500 hidden sm:inline">(PDF/DOCX: Text Extraction &middot; PNG/JPG: Local OCR)</span>
           </div>
 
           <div class="pt-2 border-t border-[#26262E]/60 flex flex-col gap-2">

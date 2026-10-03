@@ -76,6 +76,9 @@
     tagContainer: document.getElementById("tag-container"),
     aliasInput: document.getElementById("alias-input"),
     btnRunAnonymize: document.getElementById("btn-run-anonymize"),
+    uploadFileStatus: document.getElementById("upload-file-status"),
+    uploadFilename: document.getElementById("upload-filename"),
+    uploadMethodBadge: document.getElementById("upload-method-badge"),
 
     // Detect View
     detectChipsContainer: document.getElementById("detect-chips-container"),
@@ -329,6 +332,7 @@
 
     state.aliases = Array.isArray(sample.names) ? [...sample.names] : [];
     renderTags();
+    hideUploadStatus();
     hideError();
   }
 
@@ -382,37 +386,83 @@
     state.aliases = [];
     renderTags();
     updateCharCounter();
+    hideUploadStatus();
     hideError();
     el.payloadText.focus();
   });
 
-  // Client-side File Upload Handling (.txt, .md)
-  el.fileUploader.addEventListener("change", (e) => {
+  // Multi-format Document Upload Handling (TXT, PDF, DOCX, DOC, PNG, JPG)
+  function showUploadStatus(filename, method) {
+    if (!el.uploadFileStatus) return;
+    if (el.uploadFilename) el.uploadFilename.textContent = filename;
+    if (el.uploadMethodBadge) el.uploadMethodBadge.textContent = method;
+    el.uploadFileStatus.classList.remove("hidden");
+  }
+
+  function hideUploadStatus() {
+    if (el.uploadFileStatus) el.uploadFileStatus.classList.add("hidden");
+  }
+
+  el.fileUploader.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const ext = file.name.split(".").pop().toLowerCase();
-    if (!["txt", "md", "json", "log"].includes(ext)) {
-      showError("Please upload a plain text or Markdown file (.txt, .md).");
+    hideError();
+    const ext = "." + file.name.split(".").pop().toLowerCase();
+    const supported = [".txt", ".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".md", ".json", ".log"];
+    if (!supported.includes(ext)) {
+      showError(`Unsupported file format '${ext}'. Supported formats: TXT, PDF, DOCX, DOC, PNG, JPG.`);
+      e.target.value = "";
       return;
     }
 
-    if (file.size > 200000) {
-      showError("Uploaded file is too large for privacy analysis (max 200 KB).");
+    if (file.size > 10 * 1024 * 1024) {
+      showError("Uploaded file exceeds 10 MB limit.");
+      e.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      el.payloadText.value = event.target.result;
+    // Direct fast reading for plain text files
+    if ([".txt", ".md", ".json", ".log"].includes(ext)) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        el.payloadText.value = event.target.result;
+        updateCharCounter();
+        showUploadStatus(file.name, "Direct Text Read");
+        hideError();
+      };
+      reader.onerror = () => showError("Failed to read the local text file.");
+      reader.readAsText(file);
+      e.target.value = "";
+      return;
+    }
+
+    // Multi-format server extraction for PDF, DOCX, DOC, PNG, JPG
+    const isImage = ext.match(/\.(png|jpg|jpeg)$/);
+    showUploadStatus(file.name, isImage ? "Running Local OCR..." : "Extracting Text...");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || `Extraction failed (${res.status})`);
+      }
+      el.payloadText.value = data.text;
       updateCharCounter();
+      showUploadStatus(data.filename || file.name, data.method || "Text Extraction");
       hideError();
-    };
-    reader.onerror = () => {
-      showError("Failed to read the local file.");
-    };
-    reader.readAsText(file);
-    e.target.value = "";
+    } catch (err) {
+      hideUploadStatus();
+      showError(err.message);
+    } finally {
+      e.target.value = "";
+    }
   });
 
   // Step 1: Anonymize
@@ -1355,6 +1405,7 @@
     el.payloadText.value = "";
     renderTags();
     updateCharCounter();
+    hideUploadStatus();
     hideError();
     setView("upload");
   }

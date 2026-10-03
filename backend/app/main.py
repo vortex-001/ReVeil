@@ -3,10 +3,10 @@ import json
 import os
 import urllib.request
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 
-from . import attacker, config, hardening, pii, pipeline
+from . import attacker, config, extractor, hardening, pii, pipeline
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 app = FastAPI(title="ReVeil", description="Privacy stress-testing tool. Not a guarantee of anonymity.")
@@ -92,3 +92,14 @@ def apply(payload: dict = Body(...)):
         except Exception:
             continue
     return {"text": hardening.apply_edits(text, clean)}
+ 
+ 
+@app.post("/api/extract")
+async def extract_file(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        return extractor.extract_text_from_bytes(file.filename or "upload.txt", content)
+    except extractor.ExtractionError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Extraction failed: {str(e)}")

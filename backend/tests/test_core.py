@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.pop("FAKE_LLM", None)
-from app import attacker, config, hardening, pii, pipeline, risk  # noqa: E402
+from app import attacker, config, extractor, hardening, pii, pipeline, risk  # noqa: E402
 
 RAHUL = "Rahul Sharma is 25 years old and lives in Chandigarh. He works at ABC Hospital and won the photography competition in 2024. Mail rahul.sharma@example.com or +91 98765 43210."
 
@@ -237,6 +237,71 @@ def test_api_response_schema_compatibility():
         assert isinstance(res["personas"], list)
     finally:
         os.environ.pop("FAKE_LLM")
+
+
+def test_extract_txt_and_edge_cases():
+    res = extractor.extract_text_from_bytes("sample.txt", b"Hello ReVeil privacy")
+    assert res["text"] == "Hello ReVeil privacy"
+    assert res["method"] == "Direct Text Read"
+
+    try:
+        extractor.extract_text_from_bytes("empty.txt", b"")
+        assert False, "Should raise ExtractionError on empty file"
+    except extractor.ExtractionError:
+        pass
+
+    try:
+        extractor.extract_text_from_bytes("test.doc", b"fake binary ole")
+        assert False, "Should raise ExtractionError for .doc"
+    except extractor.ExtractionError as e:
+        assert "Legacy binary .doc" in str(e)
+
+
+def test_extract_docx():
+    import io, docx
+    doc = docx.Document()
+    doc.add_paragraph("Dr. Vikram Malhotra lives in Chandigarh.")
+    buf = io.BytesIO()
+    doc.save(buf)
+    res = extractor.extract_text_from_bytes("interview.docx", buf.getvalue())
+    assert "Vikram Malhotra" in res["text"]
+    assert res["method"] == "DOCX Text Extraction"
+
+
+def test_extract_pdf():
+    pdf = b"""%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
+4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+5 0 obj << /Length 44 >> stream
+BT /F1 12 Tf 100 700 Td (ReVeil PDF text test) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000244 00000 n 
+0000000318 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+414
+%%EOF"""
+    res = extractor.extract_text_from_bytes("report.pdf", pdf)
+    assert res["text"] == "ReVeil PDF text test"
+    assert res["method"] == "PDF Text Extraction"
+
+
+def test_ocr_unavailable_guidance():
+    if not extractor.is_ocr_available():
+        try:
+            extractor.extract_text_from_bytes("scan.png", b"fake-png-bytes")
+            assert False, "Should raise ExtractionError when local OCR is not installed"
+        except extractor.ExtractionError as e:
+            assert "Local OCR requires Tesseract" in str(e)
 
 
 if __name__ == "__main__":
