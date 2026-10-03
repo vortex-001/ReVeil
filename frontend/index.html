@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>ReVeil — AI-Powered Privacy Risk Analyzer</title>
+
+  <!-- Google Fonts & Material Symbols -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand: "#E5383B",
+            "brand-hover": "#c92a2a",
+            surface: "#0e0e11",
+            card: "#15151A",
+            border: "#26262E",
+            "border-light": "#353438",
+            tertiary: "#57df8d",
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    @layer base {
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #0e0e11;
+        color: #e5e1e6;
+      }
+      body {
+        overscroll-behavior: none;
+      }
+    }
+
+    /* Radar sweep & pulse animation */
+    @keyframes radar-pulse {
+      0% {
+        transform: scale(0.92);
+        opacity: 0.8;
+      }
+      50% {
+        transform: scale(1.12);
+        opacity: 0.35;
+      }
+      100% {
+        transform: scale(1.28);
+        opacity: 0;
+      }
+    }
+
+    .animate-radar-pulse {
+      animation: radar-pulse 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+    }
+
+    .animate-radar-pulse-delayed {
+      animation: radar-pulse 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+      animation-delay: 1.2s;
+    }
+
+    /* Custom subtle scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0e0e11;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #26262E;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #353438;
+    }
+  </style>
+</head>
+<body class="bg-[#0e0e11] font-sans text-[#e5e1e6] antialiased min-h-screen flex flex-col justify-between selection:bg-[#E5383B] selection:text-white">
+
+  <!-- Fixed Top Header -->
+  <header class="fixed top-0 left-0 right-0 z-50 bg-[#0e0e11]/90 backdrop-blur-md border-b border-[#26262E]">
+    <div class="h-16 w-full max-w-7xl mx-auto px-6 flex items-center justify-between gap-4">
+      <!-- Logo + Brand -->
+      <a id="header-logo" class="flex items-center gap-3 cursor-pointer group" href="#" title="ReVeil Home">
+        <img alt="ReVeil" class="h-10 w-auto object-contain transition-transform group-hover:scale-[1.02]" src="reveil-logo.png"/>
+        <span class="hidden sm:inline-flex px-2 py-0.5 rounded bg-[#1f1f22] text-[#a3a1a8] font-mono text-[11px] tracking-wider uppercase border border-[#26262E]">
+          Privacy Risk Analyzer
+        </span>
+      </a>
+
+      <!-- Navigation & Status Badge -->
+      <div class="flex items-center gap-4 sm:gap-6">
+        <a class="hidden md:inline-block text-sm font-medium text-slate-300 hover:text-white transition-colors" href="#how-it-works">
+          How it works
+        </a>
+        <div class="relative">
+          <div id="health-pill" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#181820] border border-[#26262E] text-xs font-medium text-slate-300 shadow-sm cursor-pointer hover:border-slate-500 transition-colors select-none">
+            <span id="health-dot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span id="health-text">Checking model...</span>
+            <span class="material-symbols-outlined text-[14px] text-slate-500">info</span>
+          </div>
+
+          <!-- Local AI Status Popover (Feature 9) -->
+          <div id="health-popover" class="absolute right-0 top-full mt-2 w-80 bg-[#15151A] border border-[#26262E] rounded-2xl p-4 shadow-2xl z-50 hidden text-xs flex flex-col gap-3">
+            <div class="flex items-center justify-between pb-2 border-b border-[#26262E]">
+              <span class="font-bold text-white uppercase font-mono tracking-wider text-[11px]">Local AI Architecture</span>
+              <span class="px-2 py-0.5 rounded-full bg-[#2FBF71]/15 text-[#2FBF71] font-mono text-[10px] border border-[#2FBF71]/30">Verified</span>
+            </div>
+            <div class="space-y-2 text-slate-300">
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Model:</span>
+                <span id="popover-model" class="font-mono text-white font-semibold">Qwen3 1.7B</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Runtime:</span>
+                <span id="popover-runtime" class="font-mono text-white">Ollama Local API</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Status:</span>
+                <span id="popover-status" class="font-mono text-emerald-400">Ready (Local machine)</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Inference:</span>
+                <span class="font-mono text-slate-200">Local CPU sequential</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-slate-400">Validation:</span>
+                <span class="font-mono text-slate-200">Quote-or-drop filter</span>
+              </div>
+            </div>
+            <div class="pt-2 border-t border-[#26262E] text-[11px] text-slate-400 leading-relaxed font-mono">
+              AI inference: Local machine &middot; Document processing: Local backend
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 6-Step Stepper Bar (Active on analysis steps) -->
+  <div id="stepper-bar" class="fixed top-16 left-0 right-0 z-40 bg-[#15151A]/95 backdrop-blur border-b border-[#26262E] hidden">
+    <div class="w-full max-w-5xl mx-auto px-6 py-2.5 overflow-x-auto">
+      <nav class="flex items-center justify-between min-w-[620px] text-xs font-medium gap-2">
+        <!-- Step 1: Upload -->
+        <div data-step="1" class="flex items-center gap-2 text-[#7d7b83] px-3 py-1.5 rounded cursor-pointer">
+          <span class="step-circle w-5 h-5 rounded-full bg-[#1f1f22] flex items-center justify-center font-mono text-[11px]">1</span>
+          <span class="step-label">Upload</span>
+        </div>
+        <div class="w-6 h-[1px] bg-[#26262E] shrink-0"></div>
+
+        <!-- Step 2: Detect -->
+        <div data-step="2" class="flex items-center gap-2 text-[#7d7b83] px-3 py-1.5 rounded cursor-pointer">
+          <span class="step-circle w-5 h-5 rounded-full bg-[#1f1f22] flex items-center justify-center font-mono text-[11px]">2</span>
+          <span class="step-label">Detect</span>
+        </div>
+        <div class="w-6 h-[1px] bg-[#26262E] shrink-0"></div>
+
+        <!-- Step 3: Attack -->
+        <div data-step="3" class="flex items-center gap-2 text-[#7d7b83] px-3 py-1.5 rounded">
+          <span class="step-circle w-5 h-5 rounded-full bg-[#1f1f22] flex items-center justify-center font-mono text-[11px]">3</span>
+          <span class="step-label">Attack</span>
+        </div>
+        <div class="w-6 h-[1px] bg-[#26262E] shrink-0"></div>
+
+        <!-- Step 4: Risk -->
+        <div data-step="4" class="flex items-center gap-2 text-[#7d7b83] px-3 py-1.5 rounded cursor-pointer">
+          <span class="step-circle w-5 h-5 rounded-full bg-[#1f1f22] flex items-center justify-center font-mono text-[11px]">4</span>
+          <span class="step-label">Risk</span>
+        </div>
+        <div class="w-6 h-[1px] bg-[#26262E] shrink-0"></div>
+
+        <!-- Step 5: Harden -->
+        <div data-step="5" class="flex items-center gap-2 text-[#7d7b83] px-3 py-1.5 rounded cursor-pointer">
+          <span class="step-circle w-5 h-5 rounded-full bg-[#1f1f22] flex items-center justify-center font-mono text-[11px]">5</span>
+          <span class="step-label">Harden</span>
+        </div>
+        <div class="w-6 h-[1px] bg-[#26262E] shrink-0"></div>
+
+        <!-- Step 6: Re-test -->
+        <div data-step="6" class="flex items-center gap-2 text-[#7d7b83] px-3 py-1.5 rounded">
+          <span class="step-circle w-5 h-5 rounded-full bg-[#1f1f22] flex items-center justify-center font-mono text-[11px]">6</span>
+          <span class="step-label">Re-test</span>
+        </div>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Global Error Alert Banner -->
+  <div id="global-error" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4 hidden transition-all">
+    <div class="bg-[#1b1012] border border-red-500/50 rounded-xl p-4 flex items-start justify-between gap-3 shadow-2xl text-red-200 text-sm">
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined text-red-400 text-[20px] shrink-0">error</span>
+        <div id="global-error-msg" class="leading-relaxed"></div>
+      </div>
+      <button id="global-error-close" class="text-slate-400 hover:text-white font-bold leading-none p-1 cursor-pointer" type="button">&times;</button>
+    </div>
+  </div>
+
+  <!-- MAIN APPLICATION CONTAINER -->
+  <main class="w-full flex-1 flex flex-col items-center">
+
+    <!-- ================= VIEW 0: LANDING ================= -->
+    <section id="view-landing" class="w-full max-w-5xl mx-auto px-6 pt-24 pb-20 flex flex-col items-center">
+      <!-- Hero Section -->
+      <div class="flex flex-col items-center text-center max-w-3xl mx-auto pt-6">
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.15] mb-6">
+          Is your anonymous document <span class="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-[#E5383B]">really anonymous?</span>
+        </h1>
+        <p class="text-lg sm:text-xl text-slate-400 leading-relaxed max-w-2xl mb-9">
+          Removing a name isn't always enough. ReVeil checks whether the remaining clues could still reveal who a document is about.
+        </p>
+        <div class="flex flex-wrap items-center justify-center gap-4 mb-16">
+          <button id="btn-start-analysis" class="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl bg-[#E5383B] hover:bg-[#c92a2a] text-white font-semibold shadow-lg shadow-red-950/40 transition-all hover:translate-y-[-1px] cursor-pointer" type="button">
+            <span>Analyze a Document</span>
+            <span class="material-symbols-outlined text-[19px]">arrow_forward</span>
+          </button>
+          <a class="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-[#26262E] bg-[#181820]/60 hover:bg-[#1f1f2a] text-slate-200 font-semibold transition-all" href="#how-it-works">
+            <span>How it works</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Hero Visual: Spacious Before/After Card -->
+      <div class="w-full max-w-4xl bg-[#15151A] border border-[#26262E] rounded-2xl p-7 sm:p-10 shadow-2xl relative overflow-hidden mb-16">
+        <div class="absolute -top-24 right-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+          <!-- Before Panel -->
+          <div class="flex flex-col bg-[#0f0f14] border border-[#21212a] rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Before</span>
+              <span class="text-xs font-medium text-rose-400/90 bg-rose-950/40 border border-rose-900/40 px-2 py-0.5 rounded-md">Original draft</span>
+            </div>
+            <div class="text-[15px] sm:text-base leading-relaxed text-slate-200 my-auto font-mono py-2">
+              <span class="bg-red-500/20 text-red-300 px-2 py-1 rounded border border-red-500/30 line-through">Rahul Sharma</span>
+              is 
+              <span class="bg-amber-500/15 text-amber-200/90 px-2 py-0.5 rounded border border-amber-500/20">25 years old</span>
+              and lives in 
+              <span class="bg-amber-500/15 text-amber-200/90 px-2 py-0.5 rounded border border-amber-500/20">Chandigarh</span>.
+            </div>
+          </div>
+          <!-- After Panel -->
+          <div class="flex flex-col bg-[#0f0f14] border border-[#21212a] rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">After Redaction</span>
+              <span class="text-xs font-medium text-amber-400/90 bg-amber-950/30 border border-amber-900/30 px-2 py-0.5 rounded-md">Remaining Clues</span>
+            </div>
+            <div class="text-[15px] sm:text-base leading-relaxed text-slate-200 my-auto font-mono py-2">
+              <span class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-semibold border border-slate-700">[NAME]</span>
+              is 
+              <span class="bg-amber-500/20 text-amber-300 font-medium px-2 py-0.5 rounded border border-amber-500/30">25 years old</span>
+              and lives in 
+              <span class="bg-amber-500/20 text-amber-300 font-medium px-2 py-0.5 rounded border border-amber-500/30">Chandigarh</span>.
+            </div>
+          </div>
+        </div>
+        <!-- Caption -->
+        <div class="mt-8 pt-6 border-t border-[#22222a] flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+              <span class="material-symbols-outlined text-[19px]">lightbulb</span>
+            </div>
+            <span class="text-base sm:text-lg font-medium text-white">The name is gone. The clues are not.</span>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-400">
+            Age, city, and subtle identifiers can still single someone out.
+          </p>
+        </div>
+      </div>
+
+      <!-- Three Simple Steps Section -->
+      <section class="w-full max-w-4xl" id="how-it-works">
+        <div class="text-center mb-12">
+          <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">How ReVeil Works</h2>
+          <p class="text-slate-400 text-sm sm:text-base mt-2">Three straightforward steps to stress-test private documents.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Step 1 -->
+          <div class="bg-[#15151A] border border-[#26262E] rounded-xl p-7 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div>
+              <div class="w-10 h-10 rounded-lg bg-[#1e1e27] border border-[#26262E] flex items-center justify-center text-slate-200 mb-5">
+                <span class="material-symbols-outlined text-[20px]">person_remove</span>
+              </div>
+              <span class="text-xs font-mono font-semibold text-slate-400 tracking-wider uppercase">Step 01</span>
+              <h3 class="text-lg font-bold text-white mt-1 mb-2">Remove identifiers</h3>
+              <p class="text-sm text-slate-400 leading-relaxed">
+                Instantly spots and scrubs direct personal identifiers like names, emails, and phone numbers.
+              </p>
+            </div>
+          </div>
+          <!-- Step 2 -->
+          <div class="bg-[#15151A] border border-[#26262E] rounded-xl p-7 flex flex-col justify-between hover:border-slate-700 transition-colors relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-xl pointer-events-none"></div>
+            <div>
+              <div class="w-10 h-10 rounded-lg bg-red-950/40 border border-red-900/50 flex items-center justify-center text-red-400 mb-5">
+                <span class="material-symbols-outlined text-[20px]">psychology</span>
+              </div>
+              <span class="text-xs font-mono font-semibold text-red-400 tracking-wider uppercase">Step 02</span>
+              <h3 class="text-lg font-bold text-white mt-1 mb-2">Find hidden clues</h3>
+              <p class="text-sm text-slate-400 leading-relaxed">
+                A private offline AI simulates an attacker to see if subtle combinations of facts still unmask identity.
+              </p>
+            </div>
+          </div>
+          <!-- Step 3 -->
+          <div class="bg-[#15151A] border border-[#26262E] rounded-xl p-7 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div>
+              <div class="w-10 h-10 rounded-lg bg-[#1e1e27] border border-[#26262E] flex items-center justify-center text-slate-200 mb-5">
+                <span class="material-symbols-outlined text-[20px]">verified_user</span>
+              </div>
+              <span class="text-xs font-mono font-semibold text-slate-400 tracking-wider uppercase">Step 03</span>
+              <h3 class="text-lg font-bold text-white mt-1 mb-2">Harden &amp; re-test</h3>
+              <p class="text-sm text-slate-400 leading-relaxed">
+                Suggests clean generalisations for high-risk clues and verifies the document is genuinely safer.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ================= VIEW 1: UPLOAD (Analyze Document) ================= -->
+    <section id="view-upload" class="w-full pt-32 px-6 pb-16 flex-1 flex flex-col items-center justify-center hidden">
+      <div class="w-full max-w-3xl mx-auto flex flex-col items-center">
+        <div class="text-center mb-8">
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Let's check your document</h1>
+          <p class="text-slate-400 mt-2 text-base">Paste your text or load a synthetic sample to get started.</p>
+        </div>
+
+        <div class="w-full bg-[#15151A] border border-[#26262E] rounded-2xl p-6 sm:p-8 shadow-2xl flex flex-col space-y-6">
+          <div class="relative bg-[#0e0e11] rounded-xl border border-[#26262E] p-4 focus-within:border-[#E5383B]/60 transition-all">
+            <textarea id="payload-text" class="w-full bg-transparent text-[#e5e1e6] text-sm sm:text-base focus:outline-none resize-none leading-relaxed placeholder:text-slate-600 font-mono" placeholder="Paste your document here..." rows="8"></textarea>
+            <div class="mt-3 pt-3 border-t border-[#26262E]/70 flex items-center justify-between text-xs text-slate-400 font-mono">
+              <div class="flex items-center gap-2">
+                <span class="inline-block w-2 h-2 rounded-full bg-[#57df8d]"></span>
+                <span>Private &amp; Offline</span>
+              </div>
+              <span id="char-counter">0 / 6000 chars</span>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="btn-load-synthetic" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1f1f22] hover:bg-[#2a2a2d] text-white text-sm font-medium border border-[#26262E] transition-colors cursor-pointer" type="button">
+              <span class="material-symbols-outlined text-[#E5383B] text-[18px]">science</span>
+              Load synthetic sample
+            </button>
+            <label class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1f1f22] hover:bg-[#2a2a2d] text-white text-sm font-medium border border-[#26262E] transition-colors cursor-pointer">
+              <span class="material-symbols-outlined text-slate-400 text-[18px]">upload_file</span>
+              Upload .txt / .md
+              <input id="file-uploader" accept=".txt,.md,.json,.log" class="hidden" type="file"/>
+            </label>
+            <button id="btn-clear-input" class="p-2 rounded-xl hover:bg-[#2a2a2d] text-slate-400 hover:text-red-400 transition-colors cursor-pointer ml-auto" title="Clear text" type="button">
+              <span class="material-symbols-outlined text-[18px]">delete</span>
+            </button>
+          </div>
+
+          <div class="pt-2 border-t border-[#26262E]/60 flex flex-col gap-2">
+            <label class="text-xs font-medium text-slate-400">Names or aliases to remove (optional)</label>
+            <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-[#0e0e11] border border-[#26262E] focus-within:border-[#E5383B]/60 transition-colors">
+              <div id="tag-container" class="flex flex-wrap gap-1.5 items-center"></div>
+              <input id="alias-input" class="flex-1 min-w-[160px] bg-transparent text-[#e5e1e6] text-xs font-mono focus:outline-none placeholder:text-slate-600" placeholder="Type name and hit Enter..." type="text"/>
+            </div>
+          </div>
+
+          <div class="pt-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span class="text-xs text-slate-400 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[#57df8d] text-[16px]">check_circle</span>
+              AI inference: Local machine &middot; Document processing: Local backend
+            </span>
+            <button id="btn-run-anonymize" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-[#E5383B] text-white hover:bg-[#c92a2a] transition-all duration-200 font-medium text-base shadow-lg shadow-[#E5383B]/20 cursor-pointer" type="button">
+              <span>Remove identifiers</span>
+              <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 2: DETECT (Direct Identifiers Removed) ================= -->
+    <section id="view-detect" class="w-full pt-32 pb-16 px-6 flex-1 flex flex-col items-center hidden">
+      <div class="w-full max-w-4xl mx-auto flex flex-col items-center gap-8">
+        <!-- Header -->
+        <div class="text-center flex flex-col items-center gap-2.5 max-w-2xl pt-2">
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Your direct identifiers are removed.</h1>
+          <p class="text-base text-slate-400">We found these details and replaced them.</p>
+        </div>
+
+        <!-- Pill Chips Container -->
+        <div id="detect-chips-container" class="flex flex-wrap items-center justify-center gap-3"></div>
+
+        <!-- Large Before/After Comparison Card -->
+        <div class="w-full bg-[#15151A] border border-[#26262E] rounded-2xl p-6 sm:p-8 shadow-xl flex flex-col gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <!-- Original Draft Panel -->
+            <div class="flex flex-col bg-[#0e0e11] border border-[#26262E] rounded-xl overflow-hidden">
+              <div class="bg-[#1b1b1e] px-4 py-2.5 border-b border-[#26262E] flex items-center justify-between">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Original Draft</span>
+                <span class="text-[11px] font-mono text-[#ffb3ae] flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#E5383B]"></span>
+                  Contains Direct PII
+                </span>
+              </div>
+              <div class="p-5 flex-1">
+                <p id="detect-original-text" class="text-base text-gray-200 leading-relaxed font-sans whitespace-pre-wrap"></p>
+              </div>
+            </div>
+            <!-- Sanitized Draft Panel -->
+            <div class="flex flex-col bg-[#0e0e11] border border-[#26262E] rounded-xl overflow-hidden">
+              <div class="bg-[#1b1b1e] px-4 py-2.5 border-b border-[#26262E] flex items-center justify-between">
+                <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Sanitized Draft</span>
+                <span class="text-[11px] font-mono text-[#57df8d] flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#57df8d]"></span>
+                  Direct PII Scrubbed
+                </span>
+              </div>
+              <div class="p-5 flex-1">
+                <p id="detect-sanitized-text" class="text-base text-gray-200 leading-relaxed font-sans whitespace-pre-wrap"></p>
+              </div>
+            </div>
+          </div>
+          <!-- Legend -->
+          <div class="flex items-center justify-center gap-4 text-xs text-slate-400 pt-1">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded bg-[#26262E] border border-[#353438]"></span>
+              <span>Direct identifier redacted</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded bg-amber-500/30 border border-amber-500/50"></span>
+              <span>Surviving contextual clues</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Callout Box -->
+        <div class="w-full bg-[#1b1b1e]/90 border border-amber-500/25 rounded-2xl p-6 sm:p-7 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-lg">
+          <div class="flex items-start gap-4 max-w-2xl">
+            <div class="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <span class="material-symbols-outlined text-[24px]">visibility</span>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <h2 class="text-lg font-bold text-white tracking-tight">But is it really anonymous?</h2>
+              <p class="text-sm text-slate-300 leading-relaxed">
+                Direct identifiers are gone, but surviving clues like location, age bracket, and employer can still be combined to single out who this document is about.
+              </p>
+            </div>
+          </div>
+          <!-- Primary CTA Button -->
+          <button id="btn-start-attack" class="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-[#E5383B] hover:bg-[#c92a2a] text-white px-8 py-4 rounded-xl text-base font-medium transition-all shadow-md active:scale-[0.98] shrink-0 cursor-pointer" type="button">
+            <span>Check for hidden clues</span>
+            <span class="material-symbols-outlined text-[19px]">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 3: ATTACK (AI Adversary Loading State) ================= -->
+    <section id="view-attack" class="w-full flex-1 flex items-center justify-center px-6 pt-32 pb-16 hidden">
+      <div class="w-full max-w-xl mx-auto flex flex-col items-center text-center py-6">
+        <!-- Animated Radar Shield Visual -->
+        <div class="relative w-44 h-44 flex items-center justify-center mb-8">
+          <div class="absolute inset-0 rounded-full bg-[#E5383B]/10 filter blur-xl animate-radar-pulse"></div>
+          <div class="absolute inset-2 rounded-full border border-[#E5383B]/20 animate-radar-pulse"></div>
+          <div class="absolute inset-6 rounded-full border border-[#E5383B]/30 animate-radar-pulse-delayed"></div>
+          <div class="relative z-10 w-28 h-28 rounded-2xl bg-[#1b1b1e] border border-[#E5383B]/40 shadow-[0_0_35px_rgba(229,56,59,0.3)] flex items-center justify-center overflow-hidden p-4">
+            <img id="attack-radar-logo" alt="ReVeil" class="h-10 w-auto object-contain" src="reveil-logo.png"/>
+          </div>
+        </div>
+
+        <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-3">
+          Looking for clues...
+        </h1>
+        <p class="text-base text-slate-400 max-w-lg mb-8 leading-relaxed">
+          ReVeil is checking whether the remaining details could narrow down who this document is about.
+        </p>
+
+        <!-- Progress Bar -->
+        <div class="w-full max-w-md flex flex-col gap-2 mb-8">
+          <div class="flex items-center justify-between text-xs text-slate-400 font-medium px-0.5">
+            <span id="attack-live-status">Analyzing context...</span>
+            <span id="attack-progress-percent" class="text-white font-mono font-semibold">15%</span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-[#26262E] overflow-hidden">
+            <div id="attack-progress-bar" class="h-full bg-[#E5383B] rounded-full transition-all duration-700 ease-out shadow-[0_0_10px_#E5383B]" style="width: 15%;"></div>
+          </div>
+        </div>
+
+        <!-- Live Status Card -->
+        <div class="w-full max-w-md bg-[#15151A] rounded-xl p-5 border border-[#26262E] shadow-lg text-left flex flex-col gap-3.5 mb-8">
+          <div class="flex items-center gap-3 text-sm text-slate-200">
+            <span class="w-2 h-2 rounded-full bg-[#E5383B] shrink-0"></span>
+            <span id="attack-live-detail" class="font-medium">Checking quasi-identifiers and location clues...</span>
+          </div>
+          <div class="h-px bg-[#26262E] w-full"></div>
+          <div class="flex items-center gap-3 text-xs text-slate-400">
+            <span class="w-2 h-2 rounded-full bg-[#57df8d] animate-pulse shrink-0"></span>
+            <span>Enforcing quote-or-drop validation (discarding hallucinations)</span>
+          </div>
+        </div>
+
+        <!-- Reassurance Badge -->
+        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#15151A] border border-[#26262E] text-xs text-slate-400 shadow-sm">
+          <span class="material-symbols-outlined text-[#57df8d] text-base">check_circle</span>
+          <span id="attack-offline-badge-text">Running locally · Your text stays on this machine</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 4: RISK (Privacy Risk Report — Showcase 1) ================= -->
+    <section id="view-risk" class="w-full pt-32 pb-16 px-6 flex-1 flex flex-col items-center hidden">
+      <div class="w-full max-w-4xl mx-auto flex flex-col items-center">
+        <!-- Heading -->
+        <div class="mb-8 text-center">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-950/40 border border-red-900/40 text-red-300 font-mono text-xs uppercase mb-3">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#E5383B] animate-pulse"></span>
+            Multi-Persona Red Team Completed
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Privacy Risk Report</h1>
+          <p class="text-slate-400 mt-1.5 text-base">Adversary simulation and re-identification attack surface analysis.</p>
+        </div>
+
+        <!-- 1. Executive Risk Summary Card (Feature 10) -->
+        <div class="w-full bg-[#15151A] border border-[#26262E] rounded-2xl p-6 sm:p-7 mb-6 shadow-xl">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-[#26262E]">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-mono font-semibold uppercase text-slate-400 tracking-wider">Executive Risk Summary</span>
+              <span id="risk-exec-badge" class="px-3.5 py-1 rounded-full bg-[#E5383B]/20 text-[#ffb4ab] border border-[#E5383B]/40 font-mono text-xs font-bold uppercase tracking-wider">HIGH PRIVACY RISK</span>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">Simulated Adversary Evaluation</span>
+          </div>
+
+          <p id="risk-exec-summary-text" class="text-sm sm:text-base text-slate-200 mt-4 leading-relaxed"></p>
+
+          <!-- KPI Metric Tiles -->
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-6 pt-5 border-t border-[#26262E]">
+            <div class="bg-[#0e0e11] border border-[#26262E] rounded-xl p-3 flex flex-col items-center text-center">
+              <span class="text-[11px] font-mono text-slate-400 uppercase">Direct PII</span>
+              <span id="risk-metric-pii" class="text-xl font-bold text-white mt-1">0</span>
+              <span class="text-[10px] text-slate-500 font-mono">scrubbed</span>
+            </div>
+            <div class="bg-[#0e0e11] border border-[#26262E] rounded-xl p-3 flex flex-col items-center text-center">
+              <span class="text-[11px] font-mono text-slate-400 uppercase">Verified Clues</span>
+              <span id="risk-metric-verified" class="text-xl font-bold text-amber-300 mt-1">0</span>
+              <span class="text-[10px] text-slate-500 font-mono">verbatim</span>
+            </div>
+            <div class="bg-[#0e0e11] border border-[#26262E] rounded-xl p-3 flex flex-col items-center text-center">
+              <span class="text-[11px] font-mono text-slate-400 uppercase">Rejected Claims</span>
+              <span id="risk-metric-rejected" class="text-xl font-bold text-slate-300 mt-1">0</span>
+              <span class="text-[10px] text-slate-500 font-mono">hallucinated</span>
+            </div>
+            <div class="bg-[#0e0e11] border border-[#26262E] rounded-xl p-3 flex flex-col items-center text-center">
+              <span class="text-[11px] font-mono text-slate-400 uppercase">Edits Available</span>
+              <span id="risk-metric-edits" class="text-xl font-bold text-[#2FBF71] mt-1">0</span>
+              <span class="text-[10px] text-slate-500 font-mono">generalise</span>
+            </div>
+            <div class="col-span-2 sm:col-span-1 bg-[#0e0e11] border border-[#26262E] rounded-xl p-3 flex flex-col items-center text-center">
+              <span class="text-[11px] font-mono text-slate-400 uppercase">Heuristic Score</span>
+              <span id="risk-metric-score" class="text-xl font-bold text-white mt-1">0</span>
+              <span class="text-[10px] text-slate-500 font-mono">capped sum</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Dynamic Risk Visualization (Feature 3) -->
+        <div id="risk-svg-chart-container" class="w-full bg-[#15151A] border border-[#26262E] rounded-2xl p-6 sm:p-7 mb-8 shadow-xl"></div>
+
+        <!-- 3. Attack Surface Breakdown (Feature 2) -->
+        <div class="w-full text-left mb-8">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-lg font-bold text-white">Attack Surface Breakdown</h2>
+              <p class="text-xs text-slate-400">Analysis of surviving quasi-identifier vectors and demographic breadcrumbs.</p>
+            </div>
+            <span class="text-xs text-slate-400 font-mono hidden sm:inline">Transparent Categorization</span>
+          </div>
+          <div id="attack-surface-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 w-full"></div>
+        </div>
+
+        <!-- 4. Verified Evidence Chains (Feature 4) -->
+        <div class="w-full text-left mb-8">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-lg font-bold text-white">Verified Evidence Chains</h2>
+              <p class="text-xs text-slate-400">Verbatim document quotes that narrow identification candidate pools.</p>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">Category &rarr; Quote &rarr; Reasoning</span>
+          </div>
+          <div id="evidence-chain-container" class="space-y-3 w-full"></div>
+        </div>
+
+        <!-- 5. Multi-Persona AI Red Team Findings (Feature 1 & 8) -->
+        <div class="w-full text-left mb-8">
+          <div class="mb-4">
+            <h2 class="text-lg font-bold text-white">AI Red Team Adversary Personas</h2>
+            <p class="text-xs text-slate-400">Sequential attack execution across Casual Reader, Informed Investigator, and Targeted Attacker.</p>
+          </div>
+          <div id="persona-tabs-container" class="flex flex-wrap gap-2 mb-3"></div>
+          <div id="persona-tab-content" class="w-full"></div>
+        </div>
+
+        <!-- 6. Quote-or-Drop Audit: Rejected AI Claims (Feature 5) -->
+        <div class="w-full text-left mb-8">
+          <button id="rejected-claims-toggle" class="w-full bg-[#15151A] border border-[#26262E] hover:border-slate-600 rounded-xl p-4 flex items-center justify-between transition-colors text-left cursor-pointer mb-2" type="button">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-amber-400 text-[20px]">filter_alt</span>
+              <span class="font-bold text-sm text-white">Quote-or-Drop Audit: Rejected / Unsupported AI Claims</span>
+              <span id="rejected-claims-count" class="px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/40 text-xs font-mono font-bold">0</span>
+            </div>
+            <span class="material-symbols-outlined text-slate-400 toggle-icon text-[20px]">expand_more</span>
+          </button>
+          <div id="rejected-claims-content" class="w-full bg-[#15151A] border border-[#26262E] rounded-xl p-4 hidden">
+            <p class="text-xs text-slate-400 mb-3">
+              Strict quote-or-drop validation ensures ReVeil never scores hallucinations. Any AI observations whose quotes were not found verbatim in the document are dropped and logged here.
+            </p>
+            <div id="rejected-claims-list" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- 7. Primary Action Button -->
+        <div class="w-full flex flex-col items-center text-center pt-2 pb-6">
+          <button id="btn-go-to-harden" class="w-full sm:w-auto px-10 py-4 rounded-xl bg-[#E5383B] hover:bg-[#c92a2a] text-white text-base font-medium shadow-lg hover:shadow-xl transition-all duration-150 flex items-center justify-center gap-2 mb-3 cursor-pointer" type="button">
+            <span>Harden my document</span>
+            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+          </button>
+          <p class="text-xs text-slate-500 max-w-md font-mono">
+            Estimated risk based on local AI analysis and transparent rules. This is not a probability or guarantee.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 5: HARDEN (Contextual Hardening) ================= -->
+    <section id="view-harden" class="w-full pt-32 pb-16 px-6 flex-1 flex flex-col items-center hidden">
+      <div class="w-full max-w-4xl mx-auto flex flex-col items-center">
+        <!-- Heading -->
+        <div class="text-center mb-8">
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-2">Let's make it safer.</h1>
+          <p class="text-slate-400 text-base sm:text-lg">Choose which details you'd like to make less specific.</p>
+        </div>
+
+        <!-- Hardening Cards Container -->
+        <div id="harden-cards-container" class="w-full flex flex-col"></div>
+
+        <!-- Feature 7: Privacy vs Content Preservation Table -->
+        <div id="harden-preservation-table" class="w-full"></div>
+
+        <!-- Projected Risk Reduction Pill -->
+        <div class="mt-6 mb-8 flex justify-center">
+          <div id="preview-pill" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#15151A] border border-[#26262E] text-sm shadow-md">
+            <span class="w-2 h-2 rounded-full bg-[#57df8d]"></span>
+            <span class="text-slate-400 font-medium">Selected Edits:</span>
+            <span id="pill-text" class="font-bold text-white">4 generalisations ready to apply</span>
+          </div>
+        </div>
+
+        <!-- Actions Row -->
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
+          <button id="btn-apply-and-retest" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#E5383B] hover:bg-[#c92a2a] text-white rounded-xl px-10 py-4 text-base font-medium transition-all shadow-lg shadow-[#E5383B]/20 cursor-pointer" type="button">
+            <span>Apply &amp; re-test</span>
+            <span class="material-symbols-outlined text-[19px]">arrow_forward</span>
+          </button>
+          <button id="btn-cancel-harden" class="w-full sm:w-auto text-slate-400 hover:text-white px-6 py-4 text-sm font-medium transition-colors cursor-pointer" type="button">
+            Cancel &amp; back to report
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 6: RETEST (Before vs After Final Report — Showcase 2) ================= -->
+    <section id="view-retest" class="w-full flex-1 pt-32 pb-16 px-4 hidden">
+      <div class="max-w-4xl mx-auto flex flex-col items-center">
+        <!-- Celebratory Heading -->
+        <div class="text-center mb-8">
+          <div id="retest-celebration-pill" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#57df8d]/10 border border-[#57df8d]/30 text-[#57df8d] font-mono text-xs uppercase mb-3">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#57df8d] animate-pulse"></span>
+            Privacy Optimization Verified
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-2">
+            Your document is more private.
+          </h1>
+          <p class="text-base text-slate-400 max-w-xl mx-auto">
+            Comparison of simulated adversary risk before and after contextual hardening.
+          </p>
+        </div>
+
+        <!-- 1. Executive Retest Summary Card (Feature 10) -->
+        <div class="w-full max-w-4xl bg-[#15151A] border border-[#26262E] rounded-2xl p-6 mb-8 shadow-xl">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#26262E]">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-mono font-semibold uppercase text-slate-400 tracking-wider">Executive Retest Summary</span>
+              <span id="retest-exec-badge" class="px-3.5 py-1 rounded-full bg-[#2FBF71]/20 text-[#2FBF71] border border-[#2FBF71]/40 font-mono text-xs font-bold uppercase tracking-wider">LOW RISK</span>
+            </div>
+            <div id="retest-delta-badge" class="bg-[#1b1b1e] border border-[#2FBF71]/50 shadow-2xl px-4 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-[#2FBF71] backdrop-blur-md">
+              <span id="retest-delta-text">Reduced by -- points</span>
+            </div>
+          </div>
+          <p id="retest-exec-summary-text" class="text-sm text-slate-300 mt-4 leading-relaxed"></p>
+        </div>
+
+        <!-- 2. Visual Risk Comparison (Side-by-Side Cards) -->
+        <div class="w-full max-w-4xl mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 relative items-stretch">
+            <!-- Card 1: Before Hardening -->
+            <div class="bg-[#15151A] border border-[#26262E] rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div class="absolute -top-10 -left-10 w-32 h-32 bg-[#E5383B]/10 rounded-full blur-2xl pointer-events-none"></div>
+              <div>
+                <div class="flex items-center justify-between mb-4">
+                  <span class="font-mono text-xs font-semibold tracking-wider text-slate-400 uppercase flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#E5383B]"></span>
+                    BEFORE HARDENING
+                  </span>
+                  <span id="retest-before-level" class="px-2.5 py-0.5 rounded-full bg-red-950/80 text-[#ffb4ab] border border-[#E5383B]/40 font-mono text-xs font-bold uppercase">
+                    HIGH RISK
+                  </span>
+                </div>
+                <div class="flex items-baseline gap-2 mb-3">
+                  <span id="retest-before-score" class="text-4xl font-extrabold text-white">Score --</span>
+                </div>
+              </div>
+              <p id="retest-before-clues-note" class="text-xs sm:text-sm text-slate-400 flex items-center gap-1.5 pt-3 border-t border-[#26262E]/80">
+                <span class="material-symbols-outlined text-[#E5383B] text-[18px] shrink-0">warning</span>
+                Specific identifying details exposed
+              </p>
+            </div>
+
+            <!-- Card 2: After Hardening -->
+            <div class="bg-[#15151A] border border-[#26262E] rounded-2xl p-6 flex flex-col justify-between shadow-xl relative overflow-hidden">
+              <div class="absolute -top-10 -right-10 w-32 h-32 bg-[#57df8d]/10 rounded-full blur-2xl pointer-events-none"></div>
+              <div>
+                <div class="flex items-center justify-between mb-4">
+                  <span class="font-mono text-xs font-semibold tracking-wider text-slate-400 uppercase flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-[#57df8d]"></span>
+                    AFTER HARDENING
+                  </span>
+                  <span id="retest-after-level" class="px-2.5 py-0.5 rounded-full bg-[#00a65d]/20 text-[#57df8d] border border-[#57df8d]/40 font-mono text-xs font-bold uppercase">
+                    LOW RISK
+                  </span>
+                </div>
+                <div class="flex items-baseline gap-2 mb-3">
+                  <span id="retest-after-score" class="text-4xl font-extrabold text-[#57df8d]">Score --</span>
+                </div>
+              </div>
+              <p class="text-xs sm:text-sm text-slate-300 flex items-center gap-1.5 pt-3 border-t border-[#26262E]/80">
+                <span class="material-symbols-outlined text-[#57df8d] text-[18px] shrink-0">check_circle</span>
+                Clues generalized into broad cohorts
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Dynamic SVG Score Comparison Chart (Feature 3) -->
+        <div id="retest-svg-chart-container" class="w-full max-w-4xl mb-8"></div>
+
+        <!-- 4. Feature 8: Attack Replay Section -->
+        <div class="w-full max-w-4xl text-left mb-8">
+          <div class="mb-4">
+            <h2 class="text-lg font-bold text-white">Attack Replay &amp; Progression</h2>
+            <p class="text-xs text-slate-400">Sequential attacker findings across all 3 personas and final regression re-test.</p>
+          </div>
+          <div id="retest-attack-replay-list" class="space-y-3"></div>
+        </div>
+
+        <!-- 5. Side-by-Side Text Comparison Card -->
+        <div class="w-full max-w-4xl bg-[#15151A] border border-[#26262E] rounded-2xl p-6 sm:p-8 shadow-xl mb-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 divide-y md:divide-y-0 md:divide-x divide-[#26262E]">
+            <!-- Left: Before (Sanitized) -->
+            <div class="flex flex-col pb-4 md:pb-0 md:pr-4">
+              <div class="flex items-center justify-between pb-3 mb-4 border-b border-[#26262E]">
+                <span class="font-mono text-xs uppercase font-bold text-[#ffb4ab] flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-[#E5383B]"></span>
+                  Before (Sanitized Only)
+                </span>
+                <span class="font-mono text-[11px] text-slate-500">Exposed Identifiers</span>
+              </div>
+              <div id="retest-before-diff-text" class="text-sm leading-relaxed text-slate-300 space-y-3 font-normal whitespace-pre-wrap"></div>
+            </div>
+
+            <!-- Right: After (Hardened) -->
+            <div class="md:pl-6 pt-4 md:pt-0 flex flex-col">
+              <div class="flex items-center justify-between pb-3 mb-4 border-b border-[#26262E]">
+                <span class="font-mono text-xs uppercase font-bold text-[#57df8d] flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-[#57df8d]"></span>
+                  After (Hardened)
+                </span>
+                <span class="font-mono text-[11px] text-[#57df8d]/70">Contextual Defense</span>
+              </div>
+              <div id="retest-after-diff-text" class="text-sm leading-relaxed text-slate-200 space-y-3 font-normal whitespace-pre-wrap"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Action CTAs -->
+        <div class="w-full max-w-4xl flex flex-wrap items-center justify-center gap-4 mb-8">
+          <button id="download-report" class="bg-[#E5383B] hover:bg-[#c92a2a] text-white px-8 py-3.5 rounded-xl font-medium transition-all shadow-lg hover:shadow-[#E5383B]/20 flex items-center justify-center gap-2 cursor-pointer text-sm" type="button">
+            <span class="material-symbols-outlined text-[20px]">download</span>
+            <span>Download Report (.md)</span>
+          </button>
+          <button id="copy-hardened" class="bg-transparent hover:bg-[#26262E]/50 text-white border border-[#26262E] hover:border-slate-500 px-6 py-3.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 cursor-pointer text-sm" type="button">
+            <span class="material-symbols-outlined text-[19px]">content_copy</span>
+            <span id="copy-text">Copy Hardened Text</span>
+          </button>
+          <button id="btn-restart-analysis" class="text-slate-400 hover:text-white px-4 py-3.5 font-medium transition-colors flex items-center justify-center gap-1.5 text-sm cursor-pointer" type="button">
+            <span class="material-symbols-outlined text-[18px]">replay</span>
+            <span>Analyze another document</span>
+          </button>
+        </div>
+
+        <!-- Mandatory Verification Notice -->
+        <div class="w-full max-w-3xl bg-[#15151A] border border-[#26262E] rounded-xl px-5 py-3.5 flex items-center gap-3 text-slate-400 shadow-sm">
+          <span class="material-symbols-outlined text-slate-400 text-[20px] shrink-0">shield</span>
+          <p class="text-xs leading-relaxed">
+            <span class="text-slate-300 font-medium">Mandatory Verification Notice:</span> Hardening reduces detail and cannot guarantee anonymity. LOW means 'our attacker found little', never 'safe'.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Clean Minimal Footer -->
+  <footer class="w-full border-t border-[#1d1d24] py-8 px-6 bg-[#0a0a0d] mt-auto">
+    <div class="max-w-4xl mx-auto text-center flex flex-col items-center gap-3">
+      <div class="max-w-2xl px-4 py-1.5 rounded-lg bg-[#15151A] border border-[#26262E]">
+        <p class="text-xs text-slate-400 leading-relaxed font-mono">
+          ReVeil is a privacy stress-testing tool. It does not guarantee anonymity. LOW means "our attacker found little", never "safe".
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center justify-center gap-6 text-xs text-slate-500 font-mono">
+        <span>Model: Qwen3 1.7B</span>
+        <span>Runtime: Ollama Local API</span>
+        <span>Local Backend Processing</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>

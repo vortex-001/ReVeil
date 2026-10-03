@@ -1,0 +1,26 @@
+[
+  {
+    "id": "s1",
+    "title": "Sample 1 — Photographer (the Rahul example)",
+    "names": [
+      "Rahul Sharma"
+    ],
+    "text": "Rahul Sharma is 25 years old and lives in Chandigarh. He works at ABC Hospital and won the photography competition in 2024. You can reach him at rahul.sharma@example.com or +91 98765 43210."
+  },
+  {
+    "id": "s2",
+    "title": "Sample 2 — Interview transcript",
+    "names": [
+      "Meera Iyer"
+    ],
+    "text": "Interview 07. Participant: Meera Iyer. I'm 34 and I teach chemistry at St. Anne's School in Coimbatore. I started teaching in 2019, after moving back from Pune. Last year my students won the state science fair and it made the local paper. My husband runs a small bakery near Race Course Road, so our mornings are always busy."
+  },
+  {
+    "id": "s3",
+    "title": "Sample 3 — Support ticket",
+    "names": [
+      "Vikram Malhotra"
+    ],
+    "text": "Ticket #4821. Customer Dr. Vikram Malhotra, a 41-year-old senior orthopaedic surgeon at Sunrise Hospital in Ludhiana, reports that his account was locked after 3 failed logins. He joined in March 2022 and works night shifts every weekend. Contact: vikram.m@example.org or 98123 45678."
+  }
+]
