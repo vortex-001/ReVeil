@@ -593,36 +593,30 @@
 
   function startAttackAnimation(isReTest) {
     state.attackStartTime = Date.now();
-    el.attackProgressPercent.textContent = "12%";
-    el.attackProgressBar.style.width = "12%";
-
-    const statuses = [
-      { pct: 20, status: "1/5 Preparing document & isolating prompts...", detail: "Sanitizing delimiters and configuring red team" },
-      { pct: 40, status: "2/5 Running Casual Reader persona...", detail: "Scanning for prominent cities, recognizable institutions, and obvious facts" },
-      { pct: 60, status: "3/5 Running Informed Investigator persona...", detail: "Correlating workplace, dates, and geographic directories" },
-      { pct: 80, status: "4/5 Running Targeted Attacker persona...", detail: "Exploiting niche achievements, unique credentials, and narrow combinations" },
-      { pct: 92, status: "5/5 Enforcing quote-or-drop validation...", detail: "Verifying all clues verbatim; filtering unsupported AI claims" },
-    ];
-
-    let idx = 0;
+    el.attackProgressPercent.textContent = "10%";
+    el.attackProgressBar.style.width = "10%";
     el.attackLiveStatus.textContent = isReTest ? "Running privacy regression re-test on hardened text..." : "Initiating Multi-Persona AI Red Team...";
-    el.attackLiveDetail.textContent = "Running sequential attacker personas on local model...";
+    el.attackLiveDetail.textContent = "Connecting to local model and configuring attacker personas...";
 
     clearInterval(state.attackTimer);
-    state.attackTimer = setInterval(() => {
-      const elapsed = Math.round((Date.now() - state.attackStartTime) / 1000);
-      if (idx < statuses.length) {
-        el.attackProgressPercent.textContent = `${statuses[idx].pct}%`;
-        el.attackProgressBar.style.width = `${statuses[idx].pct}%`;
-        el.attackLiveStatus.textContent = statuses[idx].status;
-        el.attackLiveDetail.textContent = `${statuses[idx].detail} (${elapsed}s elapsed)`;
-        idx++;
-      } else {
-        el.attackProgressPercent.textContent = "96%";
-        el.attackProgressBar.style.width = "96%";
-        el.attackLiveDetail.textContent = `Synthesizing attack surface & risk score... (${elapsed}s elapsed)`;
+
+    const pollProgress = async () => {
+      try {
+        const prog = await api("/api/attack/progress");
+        if (prog && prog.percent > 0) {
+          const elapsed = Math.round((Date.now() - state.attackStartTime) / 1000);
+          el.attackProgressPercent.textContent = `${prog.percent}%`;
+          el.attackProgressBar.style.width = `${prog.percent}%`;
+          if (prog.status) el.attackLiveStatus.textContent = prog.status;
+          if (prog.detail) el.attackLiveDetail.textContent = `${prog.detail} (${elapsed}s elapsed)`;
+        }
+      } catch (e) {
+        // Ignore background polling errors so main attack request is unaffected
       }
-    }, 2200);
+    };
+
+    pollProgress();
+    state.attackTimer = setInterval(pollProgress, 1000);
   }
 
   function stopAttackAnimation() {

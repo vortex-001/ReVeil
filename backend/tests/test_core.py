@@ -304,6 +304,11 @@ def test_ocr_unavailable_guidance():
             assert "Local OCR requires Tesseract" in str(e)
 
 
+def test_attack_progress_state():
+    prog = attacker.get_progress()
+    assert "percent" in prog and "status" in prog and "detail" in prog
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in list(globals().items()):

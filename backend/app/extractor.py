@@ -125,8 +125,8 @@ def extract_text_from_bytes(filename: str, content: bytes) -> dict:
                 "Cloud OCR APIs are not used to guarantee privacy."
             )
         try:
-            import pytesseract
-            from PIL import Image
+            import pytesseract  # type: ignore
+            from PIL import Image  # type: ignore
 
             common_paths = [
                 r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -147,6 +147,8 @@ def extract_text_from_bytes(filename: str, content: bytes) -> dict:
                 "char_count": len(text),
                 "filename": filename,
             }
+        except ExtractionError:
+            raise
         except Exception as e:
             raise ExtractionError(f"Local OCR processing error: {str(e)}")
 

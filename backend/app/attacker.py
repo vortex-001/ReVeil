@@ -304,6 +304,26 @@ def _fake(text):
     }
 
 
+_CURRENT_PROGRESS = {
+    "percent": 0,
+    "status": "Ready",
+    "detail": ""
+}
+
+
+def get_progress():
+    return dict(_CURRENT_PROGRESS)
+
+
+def _set_progress(percent, status, detail):
+    global _CURRENT_PROGRESS
+    _CURRENT_PROGRESS = {
+        "percent": percent,
+        "status": status,
+        "detail": detail
+    }
+
+
 def _call_ollama(messages):
     payload = {"model": config.LLM_MODEL, "messages": messages, "stream": False, "format": SCHEMA, "think": False,
                "options": {"temperature": 0, "num_predict": config.NUM_PREDICT}}
@@ -311,11 +331,13 @@ def _call_ollama(messages):
     try:
         with urllib.request.urlopen(req, timeout=config.LLM_TIMEOUT) as r:
             return json.loads(r.read().decode())["message"]["content"]
-    except urllib.error.URLError as e:
+    except (urllib.error.URLError, TimeoutError) as e:
+        reason = getattr(e, "reason", None)
+        err_str = (str(reason) if reason else str(e)).lower()
+        if isinstance(reason, TimeoutError) or isinstance(e, TimeoutError) or "timed out" in err_str:
+            raise LLMError("The model timed out after %ds. Use a shorter text or a smaller model." % config.LLM_TIMEOUT)
         raise LLMError("Cannot reach Ollama at %s (%s). Is Ollama running and is the model pulled? Try: ollama pull %s"
-                       % (config.OLLAMA_URL, getattr(e, "reason", e), config.LLM_MODEL))
-    except TimeoutError:
-        raise LLMError("The model timed out after %ds. Use a shorter text or a smaller model." % config.LLM_TIMEOUT)
+                       % (config.OLLAMA_URL, reason or e, config.LLM_MODEL))
     except Exception as e:  # noqa
         raise LLMError("Model call failed: %s" % e)
 
@@ -330,12 +352,15 @@ def attack(text):
         res["personas"] = fake_data["personas"]
         res["rejected_claims"] = fake_data["rejected_claims"]
         res["rejected"] = len(fake_data["rejected_claims"])
+        _set_progress(100, "Attack complete", "STUB demonstration finished")
         return res
 
     if not _LOCK.acquire(blocking=False):
         raise Busy("Another analysis is already running. Please wait for it to finish.")
 
     try:
+        _set_progress(10, "1/5 Preparing document & isolating prompts...", "Sanitizing delimiters and configuring red team")
+
         personas_results = []
         all_rejected_claims = []
         seen_rejected_quotes = set()
@@ -345,9 +370,18 @@ def attack(text):
         highest_lik = "low"
         lik_weights = {"low": 1, "medium": 2, "high": 3}
 
+        persona_steps = {
+            "casual": (20, "2/5 Running Casual Reader persona...", "Scanning for prominent cities, recognizable institutions, and obvious facts"),
+            "investigator": (45, "3/5 Running Informed Investigator persona...", "Correlating workplace, dates, and geographic directories"),
+            "attacker": (70, "4/5 Running Targeted Attacker persona...", "Exploiting niche achievements, unique credentials, and narrow combinations"),
+        }
+
         # Run each persona sequentially
         for p_key in ["casual", "investigator", "attacker"]:
             p_meta = PERSONAS[p_key]
+            pct, stat, det = persona_steps[p_key]
+            _set_progress(pct, stat, f"{det} (local {config.LLM_MODEL})")
+
             msgs = build_messages(text, p_meta["system"])
             t_p0 = time.time()
             content = None
@@ -355,14 +389,18 @@ def attack(text):
 
             parsed = None
             last_err = None
-            for _ in range(2):
+            for attempt in range(2):
                 try:
                     content = _call_ollama(msgs)
+                except LLMError:
+                    raise
+                except Exception as e:
+                    raise LLMError(f"Model call failed: {e}")
+
+                try:
                     parsed = parse_json(content)
                     break
                 except (ValueError, json.JSONDecodeError) as e:
-                    last_err = e
-                except Exception as e:
                     last_err = e
 
             if parsed is None:
@@ -408,7 +446,10 @@ def attack(text):
                                 existing.setdefault("personas", []).append(p_meta["name"])
                             break
 
-        return {
+        _set_progress(92, "5/5 Enforcing quote-or-drop validation...", "Verifying all clues verbatim; filtering unsupported AI claims")
+        _set_progress(98, "Synthesizing attack surface & risk score...", "Deterministic risk engine calculation")
+
+        res = {
             "clues": all_verified_clues[:16],
             "rejected": len(all_rejected_claims),
             "rejected_claims": all_rejected_claims,
@@ -417,5 +458,10 @@ def attack(text):
             "personas": personas_results,
             "mode": "ollama"
         }
+        _set_progress(100, "Attack complete", "Rendering risk report...")
+        return res
+    except Exception:
+        _set_progress(0, "Error", "Analysis failed or interrupted")
+        raise
     finally:
         _LOCK.release()

@@ -76,6 +76,11 @@ def attack(payload: dict = Body(...)):
         raise HTTPException(502, str(e))
 
 
+@app.get("/api/attack/progress")
+def attack_progress():
+    return attacker.get_progress()
+
+
 @app.post("/api/harden")
 def harden(payload: dict = Body(...)):
     return {"edits": hardening.suggest(_text(payload))}
